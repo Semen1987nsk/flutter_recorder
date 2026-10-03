@@ -36,13 +36,17 @@ extern "C"
         int pcmFormat,
         unsigned int sampleRate,
         unsigned int channels,
-        int androidInputPreset);
+        int androidInputPreset,
+        int rawCapture);
 
     FFI_PLUGIN_EXPORT void flutter_recorder_deinit();
 
     FFI_PLUGIN_EXPORT int flutter_recorder_isInited();
 
     FFI_PLUGIN_EXPORT int flutter_recorder_isDeviceStarted();
+
+    /// Whether the capture stream got Windows' raw mode. Always 0 elsewhere.
+    FFI_PLUGIN_EXPORT int flutter_recorder_isRawCaptureActive();
 
     FFI_PLUGIN_EXPORT enum CaptureErrors flutter_recorder_start();
 

@@ -30,6 +30,11 @@ abstract class RecorderImpl {
   /// Android input preset used to initialize the device.
   AndroidInputPreset? androidInputPreset;
 
+  /// Whether the raw capture stream was asked for when initializing the
+  /// device. Being asked for does not mean it was granted: see
+  /// [isRawCaptureActive].
+  bool rawCapture = false;
+
   /// Controller to listen to silence changed event.
   late final StreamController<SilenceState> silenceChangedEventController =
       StreamController.broadcast();
@@ -113,12 +118,14 @@ abstract class RecorderImpl {
     required int sampleRate,
     required RecorderChannels channels,
     required AndroidInputPreset? androidInputPreset,
+    required bool rawCapture,
   }) {
     this.deviceID = deviceID;
     this.format = format;
     this.sampleRate = sampleRate;
     this.channels = channels;
     this.androidInputPreset = androidInputPreset;
+    this.rawCapture = rawCapture;
   }
 
   /// Dispose capture device.
@@ -130,6 +137,7 @@ abstract class RecorderImpl {
     sampleRate = null;
     channels = null;
     androidInputPreset = null;
+    rawCapture = false;
   }
 
   /// Whether the device is initialized.
@@ -139,6 +147,11 @@ abstract class RecorderImpl {
   /// Whether the device is started.
   @mustBeOverridden
   bool isDeviceStarted();
+
+  /// Whether the capture stream actually got Windows' raw mode.
+  /// Always false on the other platforms.
+  @mustBeOverridden
+  bool isRawCaptureActive();
 
   /// Start the device.
   ///

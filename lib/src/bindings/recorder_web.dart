@@ -150,6 +150,7 @@ class RecorderWeb extends RecorderImpl {
     required int sampleRate,
     required RecorderChannels channels,
     required AndroidInputPreset? androidInputPreset,
+    required bool rawCapture,
   }) {
     final error = wasmInit(deviceID, format.value, sampleRate, channels.count);
     if (CaptureErrors.fromValue(error) != CaptureErrors.captureNoError) {
@@ -163,6 +164,7 @@ class RecorderWeb extends RecorderImpl {
       sampleRate: sampleRate,
       channels: channels,
       androidInputPreset: androidInputPreset,
+      rawCapture: rawCapture,
     );
   }
 
@@ -177,6 +179,9 @@ class RecorderWeb extends RecorderImpl {
   bool isDeviceInitialized() {
     return wasmIsDeviceInitialized() == 1;
   }
+
+  @override
+  bool isRawCaptureActive() => false;
 
   @override
   bool isDeviceStarted() {

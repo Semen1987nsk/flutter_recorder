@@ -7144,6 +7144,7 @@ struct ma_device_config
         ma_bool8 noDefaultQualitySRC;       /* When set to true, disables the use of AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY. */
         ma_bool8 noAutoStreamRouting;       /* Disables automatic stream routing. */
         ma_bool8 noHardwareOffloading;      /* Disables WASAPI's hardware offloading feature. */
+        ma_bool8 rawStream;                 /* Requests AUDCLNT_STREAMOPTIONS_RAW so the stream bypasses the system's audio processing. Capture only. When the driver refuses it the device still opens, and wasapi.rawStreamAccepted on the device reports the refusal. */
         ma_uint32 loopbackProcessID;        /* The process ID to include or exclude for loopback mode. Set to 0 to capture audio from all processes. Ignored when an explicit device ID is specified. */
         ma_bool8 loopbackProcessExclude;    /* When set to true, excludes the process specified by loopbackProcessID. By default, the process will be included. */
     } wasapi;
@@ -7894,6 +7895,8 @@ struct ma_device
             ma_bool8 noAutoConvertSRC;                              /* When set to true, disables the use of AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM. */
             ma_bool8 noDefaultQualitySRC;                           /* When set to true, disables the use of AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY. */
             ma_bool8 noHardwareOffloading;
+            ma_bool8 rawStream;                                     /* Copied from the config so stream re-routing keeps asking for the raw stream. */
+            ma_bool8 rawStreamAccepted;                             /* Set during initialization: whether the raw stream was actually granted. */
             ma_bool8 allowCaptureAutoStreamRouting;
             ma_bool8 allowPlaybackAutoStreamRouting;
             ma_bool8 isDetachedPlayback;
@@ -23605,6 +23608,7 @@ typedef struct
     ma_bool32 noAutoConvertSRC;
     ma_bool32 noDefaultQualitySRC;
     ma_bool32 noHardwareOffloading;
+    ma_bool32 rawStream;
     ma_uint32 loopbackProcessID;
     ma_bool32 loopbackProcessExclude;
 
@@ -23619,6 +23623,7 @@ typedef struct
     ma_uint32 periodSizeInFramesOut;
     ma_uint32 periodsOut;
     ma_bool32 usingAudioClient3;
+    ma_bool32 rawStreamAccepted;
     char deviceName[256];
     ma_device_id id;
 } ma_device_init_internal_data__wasapi;
@@ -23670,19 +23675,36 @@ static ma_result ma_device_init_internal__wasapi(ma_context* pContext, ma_device
 
     MA_ZERO_OBJECT(&wf);
 
-    /* Try enabling hardware offloading. */
-    if (!pData->noHardwareOffloading) {
+    /* Try enabling hardware offloading, and the raw stream when it was asked for. */
+    pData->rawStreamAccepted = MA_FALSE;
+    if (!pData->noHardwareOffloading || pData->rawStream) {
         hr = ma_IAudioClient_QueryInterface(pData->pAudioClient, &MA_IID_IAudioClient2, (void**)&pAudioClient2);
         if (SUCCEEDED(hr)) {
+            ma_AudioClientProperties clientProperties;
             BOOL isHardwareOffloadingSupported = 0;
-            hr = ma_IAudioClient2_IsOffloadCapable(pAudioClient2, MA_AudioCategory_Other, &isHardwareOffloadingSupported);
-            if (SUCCEEDED(hr) && isHardwareOffloadingSupported) {
-                ma_AudioClientProperties clientProperties;
+
+            if (!pData->noHardwareOffloading) {
+                hr = ma_IAudioClient2_IsOffloadCapable(pAudioClient2, MA_AudioCategory_Other, &isHardwareOffloadingSupported);
+                if (FAILED(hr)) {
+                    isHardwareOffloadingSupported = 0;
+                }
+            }
+
+            if (isHardwareOffloadingSupported || pData->rawStream) {
                 MA_ZERO_OBJECT(&clientProperties);
                 clientProperties.cbSize = sizeof(clientProperties);
-                clientProperties.bIsOffload = 1;
+                clientProperties.bIsOffload = (isHardwareOffloadingSupported) ? 1 : 0;
                 clientProperties.eCategory = MA_AudioCategory_Other;
-                ma_IAudioClient2_SetClientProperties(pAudioClient2, &clientProperties);
+                clientProperties.Options = (pData->rawStream) ? MA_AUDCLNT_STREAMOPTIONS_RAW : MA_AUDCLNT_STREAMOPTIONS_NONE;
+
+                hr = ma_IAudioClient2_SetClientProperties(pAudioClient2, &clientProperties);
+                if (SUCCEEDED(hr)) {
+                    pData->rawStreamAccepted = pData->rawStream;
+                } else if (pData->rawStream) {
+                    /* The driver or this version of Windows refused the raw stream. The device must still open, so ask again without it. */
+                    clientProperties.Options = MA_AUDCLNT_STREAMOPTIONS_NONE;
+                    ma_IAudioClient2_SetClientProperties(pAudioClient2, &clientProperties);
+                }
             }
 
             pAudioClient2->lpVtbl->Release(pAudioClient2);
@@ -24173,12 +24195,15 @@ static ma_result ma_device_reinit__wasapi(ma_device* pDevice, ma_device_type dev
     data.noAutoConvertSRC           = pDevice->wasapi.noAutoConvertSRC;
     data.noDefaultQualitySRC        = pDevice->wasapi.noDefaultQualitySRC;
     data.noHardwareOffloading       = pDevice->wasapi.noHardwareOffloading;
+    data.rawStream                  = pDevice->wasapi.rawStream;
     data.loopbackProcessID          = pDevice->wasapi.loopbackProcessID;
     data.loopbackProcessExclude     = pDevice->wasapi.loopbackProcessExclude;
     result = ma_device_init_internal__wasapi(pDevice->pContext, deviceType, NULL, &data);
     if (result != MA_SUCCESS) {
         return result;
     }
+
+    pDevice->wasapi.rawStreamAccepted = (ma_bool8)data.rawStreamAccepted;
 
     /* At this point we have some new objects ready to go. We need to uninitialize the previous ones and then set the new ones. */
     if (deviceType == ma_device_type_capture || deviceType == ma_device_type_loopback) {
@@ -24242,6 +24267,7 @@ static ma_result ma_device_init__wasapi(ma_device* pDevice, const ma_device_conf
     pDevice->wasapi.noAutoConvertSRC       = pConfig->wasapi.noAutoConvertSRC;
     pDevice->wasapi.noDefaultQualitySRC    = pConfig->wasapi.noDefaultQualitySRC;
     pDevice->wasapi.noHardwareOffloading   = pConfig->wasapi.noHardwareOffloading;
+    pDevice->wasapi.rawStream              = pConfig->wasapi.rawStream;
     pDevice->wasapi.loopbackProcessID      = pConfig->wasapi.loopbackProcessID;
     pDevice->wasapi.loopbackProcessExclude = pConfig->wasapi.loopbackProcessExclude;
 
@@ -24264,6 +24290,7 @@ static ma_result ma_device_init__wasapi(ma_device* pDevice, const ma_device_conf
         data.noAutoConvertSRC           = pConfig->wasapi.noAutoConvertSRC;
         data.noDefaultQualitySRC        = pConfig->wasapi.noDefaultQualitySRC;
         data.noHardwareOffloading       = pConfig->wasapi.noHardwareOffloading;
+        data.rawStream                  = pConfig->wasapi.rawStream;
         data.loopbackProcessID          = pConfig->wasapi.loopbackProcessID;
         data.loopbackProcessExclude     = pConfig->wasapi.loopbackProcessExclude;
 
@@ -24274,6 +24301,7 @@ static ma_result ma_device_init__wasapi(ma_device* pDevice, const ma_device_conf
 
         pDevice->wasapi.pAudioClientCapture              = data.pAudioClient;
         pDevice->wasapi.pCaptureClient                   = data.pCaptureClient;
+        pDevice->wasapi.rawStreamAccepted                = (ma_bool8)data.rawStreamAccepted;
         pDevice->wasapi.originalPeriodSizeInMilliseconds = pDescriptorCapture->periodSizeInMilliseconds;
         pDevice->wasapi.originalPeriodSizeInFrames       = pDescriptorCapture->periodSizeInFrames;
         pDevice->wasapi.originalPeriods                  = pDescriptorCapture->periodCount;

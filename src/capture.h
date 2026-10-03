@@ -36,10 +36,15 @@ public:
   /// @param sampleRate the sample rate
   /// @param channels the number of channels
   /// @param androidInputPreset Android input preset. 0 leaves it unset.
+  /// @param rawCapture when non-zero, asks Windows for a raw capture stream
+  ///     (WASAPI `AUDCLNT_STREAMOPTIONS_RAW`), which bypasses the system's
+  ///     audio processing. Ignored on the other platforms. The device still
+  ///     opens when the driver refuses it, so ask [isRawCaptureActive]
+  ///     whether it was granted.
   /// @return `captureNoError` if no error or else `captureInitFailed`
   CaptureErrors init(Filters *filters, int deviceID, PCMFormat pcmFormat,
                      unsigned int sampleRate, unsigned int channels,
-                     int androidInputPreset);
+                     int androidInputPreset, int rawCapture);
 
   /// @brief Must be called when there is no more need of the capture or when
   /// closing the app
@@ -48,6 +53,10 @@ public:
   bool isInited();
 
   bool isDeviceStarted();
+
+  /// @brief whether the capture stream actually got Windows' raw mode.
+  ///     Always false on the other platforms and before [init].
+  bool isRawCaptureActive();
 
   CaptureErrors start();
 

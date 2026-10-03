@@ -138,6 +138,7 @@ class FlutterRecorderBindings {
     int sampleRate,
     int channels,
     int androidInputPreset,
+    int rawCapture,
   ) {
     return _flutter_recorder_init(
       deviceID,
@@ -145,15 +146,16 @@ class FlutterRecorderBindings {
       sampleRate,
       channels,
       androidInputPreset,
+      rawCapture,
     );
   }
 
   late final _flutter_recorder_initPtr = _lookup<
       ffi.NativeFunction<
           ffi.UnsignedInt Function(ffi.Int, ffi.Int, ffi.UnsignedInt,
-              ffi.UnsignedInt, ffi.Int)>>('flutter_recorder_init');
+              ffi.UnsignedInt, ffi.Int, ffi.Int)>>('flutter_recorder_init');
   late final _flutter_recorder_init = _flutter_recorder_initPtr
-      .asFunction<int Function(int, int, int, int, int)>();
+      .asFunction<int Function(int, int, int, int, int, int)>();
 
   void flutter_recorder_deinit() {
     return _flutter_recorder_deinit();
@@ -184,6 +186,16 @@ class FlutterRecorderBindings {
           'flutter_recorder_isDeviceStarted');
   late final _flutter_recorder_isDeviceStarted =
       _flutter_recorder_isDeviceStartedPtr.asFunction<int Function()>();
+
+  int flutter_recorder_isRawCaptureActive() {
+    return _flutter_recorder_isRawCaptureActive();
+  }
+
+  late final _flutter_recorder_isRawCaptureActivePtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function()>>(
+          'flutter_recorder_isRawCaptureActive');
+  late final _flutter_recorder_isRawCaptureActive =
+      _flutter_recorder_isRawCaptureActivePtr.asFunction<int Function()>();
 
   int flutter_recorder_start() {
     return _flutter_recorder_start();

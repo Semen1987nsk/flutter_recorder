@@ -201,6 +201,7 @@ class RecorderFfi extends RecorderImpl {
     required int sampleRate,
     required RecorderChannels channels,
     required AndroidInputPreset? androidInputPreset,
+    required bool rawCapture,
   }) {
     final error = _bindings.flutter_recorder_init(
       deviceID,
@@ -208,6 +209,7 @@ class RecorderFfi extends RecorderImpl {
       sampleRate,
       channels.count,
       androidInputPreset?.value ?? 0,
+      rawCapture ? 1 : 0,
     );
     if (CaptureErrors.fromValue(error) != CaptureErrors.captureNoError) {
       throw RecorderCppException.fromRecorderError(
@@ -220,6 +222,7 @@ class RecorderFfi extends RecorderImpl {
       sampleRate: sampleRate,
       channels: channels,
       androidInputPreset: androidInputPreset,
+      rawCapture: rawCapture,
     );
   }
 
@@ -233,6 +236,11 @@ class RecorderFfi extends RecorderImpl {
   @override
   bool isDeviceInitialized() {
     return _bindings.flutter_recorder_isInited() == 1;
+  }
+
+  @override
+  bool isRawCaptureActive() {
+    return _bindings.flutter_recorder_isRawCaptureActive() == 1;
   }
 
   @override

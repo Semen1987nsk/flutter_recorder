@@ -391,7 +391,7 @@ std::vector<CaptureDevice> Capture::listCaptureDevices() {
 
 CaptureErrors Capture::init(Filters *filters, int deviceID, PCMFormat pcmFormat,
                             unsigned int sampleRate, unsigned int channels,
-                            int androidInputPreset) {
+                            int androidInputPreset, int rawCapture) {
   deviceConfig = ma_device_config_init(ma_device_type_capture);
   mUsesContext = false;
   deviceConfig.periodSizeInFrames = BUFFER_SIZE;
@@ -431,6 +431,7 @@ CaptureErrors Capture::init(Filters *filters, int deviceID, PCMFormat pcmFormat,
   deviceConfig.sampleRate = sampleRate;
   deviceConfig.dataCallback = data_callback;
   deviceConfig.pUserData = this;
+  deviceConfig.wasapi.rawStream = rawCapture ? 1 : 0;
 
   CaptureErrors presetResult =
       setAndroidInputPreset(&deviceConfig, androidInputPreset);
@@ -521,6 +522,14 @@ bool Capture::isInited() { return mInited; }
 bool Capture::isDeviceStarted() {
   ma_device_state result = ma_device_get_state(&device);
   return result == ma_device_state_started;
+}
+
+bool Capture::isRawCaptureActive() {
+#if defined(MA_HAS_WASAPI)
+  return mInited && device.wasapi.rawStreamAccepted != 0;
+#else
+  return false;
+#endif
 }
 
 CaptureErrors Capture::start() {

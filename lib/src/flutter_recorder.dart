@@ -210,6 +210,10 @@ interface class Recorder {
   /// [channels] number of channels. Default to [RecorderChannels.mono].
   /// [androidInputPreset] Android capture input preset. If null, the platform
   /// default is used. Ignored on non-Android platforms.
+  /// [rawCapture] asks Windows for a raw capture stream, which bypasses the
+  /// system's audio processing such as echo cancellation. Ignored on the other
+  /// platforms. The device still opens when the driver refuses it, so ask
+  /// [isRawCaptureActive] whether it was granted.
   ///
   /// Thows [RecorderInitializeFailedException] if something goes wrong, ie. no
   /// device found with [deviceID] id.
@@ -219,6 +223,7 @@ interface class Recorder {
     int sampleRate = 22050,
     RecorderChannels channels = RecorderChannels.mono,
     AndroidInputPreset? androidInputPreset,
+    bool rawCapture = false,
   }) async {
     await _recorder.impl.setDartEventCallbacks();
 
@@ -242,6 +247,7 @@ interface class Recorder {
       sampleRate: sampleRate,
       channels: channels,
       androidInputPreset: androidInputPreset,
+      rawCapture: rawCapture,
     );
     _recorderFormat = format;
     _isInitialized = true;
@@ -253,6 +259,12 @@ interface class Recorder {
     _isInitialized = false;
     _recorder.impl.deinit();
   }
+
+  /// Whether the capture stream actually got Windows' raw mode, which was
+  /// asked for with `rawCapture` in [init]. Always false on the other
+  /// platforms, and false when the driver or this version of Windows refused
+  /// it. The device is open either way.
+  bool isRawCaptureActive() => _recorder.impl.isRawCaptureActive();
 
   /// Whether the device is initialized.
   bool isDeviceInitialized() {
