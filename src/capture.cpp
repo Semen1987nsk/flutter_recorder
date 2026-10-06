@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdarg>
+#include <cstdlib>
 #include <memory.h>
 #include <memory>
 #include <mutex>
@@ -277,7 +278,11 @@ void data_callback(ma_device *pDevice, void *pOutput, const void *pInput,
       // If we've reached the target buffer size, send the data
       if (streamBuffer->size() >= targetBufferSize) {
         // Create a copy of the data to send
-        auto *dataCopy = new unsigned char[targetBufferSize];
+        // malloc, not new[]: Dart releases it with flutter_recorder_nativeFree.
+        auto *dataCopy =
+            static_cast<unsigned char *>(malloc(targetBufferSize));
+        if (dataCopy == nullptr)
+          return;
         memcpy(dataCopy, streamBuffer->data(), targetBufferSize);
 
         // Send copy to Dart - it will be responsible for freeing the memory
@@ -572,7 +577,11 @@ void Capture::startStreamingData(StreamingFormat streamingFormat) {
         [](const unsigned char *packet, int packetSize) {
           if (nativeStreamDataCallback == nullptr)
             return;
-          auto *data = new unsigned char[packetSize + 4];
+          // malloc, not new[]: Dart releases it with flutter_recorder_nativeFree.
+          auto *data =
+              static_cast<unsigned char *>(malloc(packetSize + 4));
+          if (data == nullptr)
+            return;
           data[0] = static_cast<unsigned char>(packetSize & 0xFF);
           data[1] = static_cast<unsigned char>((packetSize >> 8) & 0xFF);
           data[2] = static_cast<unsigned char>((packetSize >> 16) & 0xFF);

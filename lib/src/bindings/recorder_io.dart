@@ -83,24 +83,26 @@ class RecorderFfi extends RecorderImpl {
     }
   }
 
-  ffi.NativeCallable<dartStreamDataCallback_tFunction>?
-      nativeStreamDataCallable;
+  // Created once and never closed: native code may still call them after
+  // deinit, and calling a closed NativeCallable is undefined behaviour.
+  ffi.NativeCallable<dartSilenceChangedCallback_tFunction>?
+      _silenceChangedCallable;
+  ffi.NativeCallable<dartStreamDataCallback_tFunction>? _streamDataCallable;
+
   @override
   Future<void> setDartEventCallbacks() async {
-    // Create a NativeCallable for the Dart functions
-    final nativeSilenceChangedCallable =
+    _silenceChangedCallable ??=
         ffi.NativeCallable<dartSilenceChangedCallback_tFunction>.listener(
       _silenceChangedCallback,
     );
-
-    final nativeStreamDataCallable =
+    _streamDataCallable ??=
         ffi.NativeCallable<dartStreamDataCallback_tFunction>.listener(
       _streamDataCallback,
     );
 
     _bindings.flutter_recorder_setDartEventCallback(
-      nativeSilenceChangedCallable.nativeFunction,
-      nativeStreamDataCallable.nativeFunction,
+      _silenceChangedCallable!.nativeFunction,
+      _streamDataCallable!.nativeFunction,
     );
   }
 
